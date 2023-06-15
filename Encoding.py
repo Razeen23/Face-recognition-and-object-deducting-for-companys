@@ -3,6 +3,20 @@ import face_recognition
 import pickle  #using pickle for serializing the Python object and store it in a file or database
 import os
 
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
+from firebase_admin import storage
+
+# the key is more important because it's contains Confidential information
+cred = credentials.Certificate("service_account_key.json")
+
+# the {} for because it's a JSON file it have the key and values
+firebase_admin.initialize_app(cred, {'databaseURL': "https://company-attendance-database-default-rtdb.firebaseio.com/",
+                                     'storageBucket': "company-attendance-database.appspot.com"})#for the storage
+
+
+
 #import employee to list
 folder_image = 'Images'
 image_path = os.listdir(folder_image)#set the path to image_path by using operating system.list Directly
@@ -16,10 +30,18 @@ for path in image_path: #for loop to append the action to list
 
     # print(path)
     # print(os.path.splitext(path)[0])
-
 # print(emp_ids)
 # print(emp_img_list)
 # print(len(action_list))
+
+    # file_name = (os.path.join(folder_image,path))
+    file_name = f'{folder_image}/{path}'
+    bucket = storage.bucket()
+    blob = bucket.blob(file_name)
+    blob.upload_from_filename(file_name)
+
+
+
 
 def con_encoding(image_list):
     encode_list = []
@@ -38,7 +60,7 @@ con_encoding_list = con_encoding(emp_img_list)
 encode_with_id = [con_encoding_list,emp_ids]
 # print(encode_with_id)
 
-file = open('ecodeing_file.p','wb')
+file = open('ecodeing_file','wb')
 pickle.dump(encode_with_id,file)
 # print(file.read())
 file.close()
