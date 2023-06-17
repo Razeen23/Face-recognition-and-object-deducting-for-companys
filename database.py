@@ -18,7 +18,7 @@ data = {
             "age":39,
             "salary":500000.00,
             "role":" manager",
-            "experience":6,
+            "employee_id":123,
             "total_attendance":80,
             "last_attendance_time":"2023-06-15 00:00:00"
 
@@ -29,7 +29,7 @@ data = {
             "age":51,
             "salary":600000.00,
             "role":"full stack developer",
-            "experience":8,
+            "employee_id":456,
             "total_attendance":90,
             "last_attendance_time":"2023-06-15 00:00:00"
 
@@ -40,7 +40,7 @@ data = {
             "age":51,
             "salary":400000.00,
             "role":"tester",
-            "experience":12,
+            "employee_id":789,
             "total_attendance":85,
             "last_attendance_time":"2023-06-15 00:00:00"
 
@@ -51,7 +51,7 @@ data = {
             "age":22,
             "salary":15000.00,
             "role":"python developer",
-            "experience":1,
+            "employee_id":2309,
             "total_attendance":75,
             "last_attendance_time":"2023-06-15 00:00:00"
 
