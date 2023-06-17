@@ -6,6 +6,20 @@ import cv2 as cv
 import face_recognition
 import cvzone as cz
 
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
+from firebase_admin import storage
+
+# the key is more important because it's contains Confidential information
+cred = credentials.Certificate("service_account_key.json")
+
+# the {} for because it's a JSON file it have the key and values
+firebase_admin.initialize_app(cred, {'databaseURL': "https://company-attendance-database-default-rtdb.firebaseio.com/",
+                                     'storageBucket': "company-attendance-database.appspot.com"})#for the storage
+
+bucket = storage.bucket()
+
 cap = cv.VideoCapture(1)
 cap.set(3, 640)
 cap.set(4, 480)
@@ -51,6 +65,11 @@ con_encoding_list,emp_ids = encode_with_id
 # file.read()
 print('loading file ended...')
 
+action_type = 0
+counter = 0
+id = -1
+img_employee = []
+
 
 while True:
     success, webcam = cap.read()
@@ -65,7 +84,7 @@ while True:
 
     img_background[273:273 + 480, 103:103 + 640] = webcam
 #   img_background[173:173 + 610, 830:830 + 390] = action_list[0]
-    img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[1]
+    img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[action_type]
 
     for encodeFace,faceLocation in zip(encode_face,face_current):
         matches = face_recognition.compare_faces(con_encoding_list,encodeFace)
@@ -79,14 +98,55 @@ while True:
 
         if matches[match_index]:
             # print('face is recognized')
-            print(emp_ids[match_index])
+            # print(emp_ids[match_index])
             # cv.rectangle(img_background,b)
             y1 , x2 , y2 , x1 = faceLocation
-            y1 , x2 , y2 , x1 = y1*4 , x2*4 , y2*4 , x1*4
+            y1 , x2 , y2 , x1 = y1*4 , x2*4 , y2*4 , x1*4 #we multiplay with 4 because we compress it 1/4 befour (line 58)
 
-            bbox = 55+x1 ,162+y1 , x2-x1 , y2 - y1
-            img_background = cz.cornerRect(img_background,bbox,rt=1)
+            # the box around the face
+            bbox = 100 + x1, 255 + y1, x2 - x1, y2 - y1
+            img_background = cz.cornerRect(img_background, bbox, rt=0)
 
+            ##try to use cv2 but it's not fit properly it can we fix but i'm happy with cvzone layout
+            ##img_background = cv.rectangle(img_background, (200 + x1,355 + y1), (x2 - x1, y2 -y1), (2, 300, 2), 2)
+
+            id = emp_ids[match_index]
+            if counter == 0:
+                counter = 1
+                action_type = 1
+
+    if counter != 0:
+
+        if counter == 1:
+            emp_info = db.reference(f'Employees/{id}').get()#geting the data from the real time database Employees
+            print(emp_info)
+
+            blob = bucket.get_blob(f'images/{id}')
+            # print(blob)
+            array = np.frombuffer(blob.download_as_string(), np.uint8)
+            img_employee = cv.imdecode(array,cv.COLOR_BGRA2BGR)
+
+
+        # cv.putText(img_background,str(emp_info['total_attendance']),(861,125),
+        #                             cv.FONT_HERSHEY_TRIPLEX,1,(255,255,255),1)
+        cv.putText(img_background,str(emp_info['total_attendance']),(1143,254),
+                    cv.FONT_HERSHEY_TRIPLEX,0.7,(255,255,255),1)
+
+        cv.putText(img_background, str(emp_info['employee_id']), (1022, 600),
+                   cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+
+        cv.putText(img_background, str(emp_info['salary']), (1057, 727),
+                   cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
+
+        cv.putText(img_background, str(emp_info['name']), (940, 254),
+                   cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+
+        cv.putText(img_background, str(emp_info['role']), (1017, 665),
+                   cv.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)
+
+        img_background[175:175+216,909:909:216]= img_employee
+
+        counter+=1 #once it Recognise the face it updates the data
 
 
     cv.imshow('face attendance', img_background)
