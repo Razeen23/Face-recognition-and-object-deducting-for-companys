@@ -1,6 +1,8 @@
 
 import os
 import pickle
+import time
+
 import numpy as np
 import cv2 as cv
 import face_recognition
@@ -10,6 +12,8 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db
 from firebase_admin import storage
+
+from datetime import datetime
 
 # the key is more important because it's contains Confidential information
 cred = credentials.Certificate("service_account_key.json")
@@ -81,79 +85,137 @@ while True:
     encode_face = face_recognition.face_encodings(img_small,face_current)#now we compare the face and encode data
 
 
-
     img_background[273:273 + 480, 103:103 + 640] = webcam
 #   img_background[173:173 + 610, 830:830 + 390] = action_list[0]
     img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[action_type]
 
-    for encodeFace,faceLocation in zip(encode_face,face_current):
-        matches = face_recognition.compare_faces(con_encoding_list,encodeFace)
-        face_dis = face_recognition.face_distance(con_encoding_list,encodeFace)
+    if face_current:
 
-        # print('face matches',matches)
-        # print('face distance',face_dis)
+        for encodeFace,faceLocation in zip(encode_face,face_current):
+            matches = face_recognition.compare_faces(con_encoding_list,encodeFace)
+            face_dis = face_recognition.face_distance(con_encoding_list,encodeFace)
 
-        match_index = np.argmin(face_dis) #argmin means argument minimum
-        # print('match index ',match_index) #it gives the matching index
+            # print('face matches',matches)
+            # print('face distance',face_dis)
 
-        if matches[match_index]:
-            # print('face is recognized')
-            # print(emp_ids[match_index])
-            # cv.rectangle(img_background,b)
-            y1 , x2 , y2 , x1 = faceLocation
-            y1 , x2 , y2 , x1 = y1*4 , x2*4 , y2*4 , x1*4 #we multiplay with 4 because we compress it 1/4 befour (line 58)
+            match_index = np.argmin(face_dis) #argmin means argument minimum
+            # print('match index ',match_index) #it gives the matching index
 
-            # the box around the face
-            bbox = 100 + x1, 255 + y1, x2 - x1, y2 - y1
-            img_background = cz.cornerRect(img_background, bbox, rt=0)
+            if matches[match_index]:
+                # print('face is recognized')
+                # print(emp_ids[match_index])
+                # cv.rectangle(img_background,b)
+                y1 , x2 , y2 , x1 = faceLocation
+                y1 , x2 , y2 , x1 = y1*4 , x2*4 , y2*4 , x1*4 #we multiplay with 4 because we compress it 1/4 befour (line 58)
 
-            ##try to use cv2 but it's not fit properly it can we fix but i'm happy with cvzone layout
-            ##img_background = cv.rectangle(img_background, (200 + x1,355 + y1), (x2 - x1, y2 -y1), (2, 300, 2), 2)
+                # the box around the face
+                bbox = 100 + x1, 255 + y1, x2 - x1, y2 - y1
+                img_background = cz.cornerRect(img_background, bbox, rt=0)
 
-            id = emp_ids[match_index]
-            if counter == 0:
-                counter = 1
-                action_type = 1
+                ##try to use cv2 but it's not fit properly it can we fix but i'm happy with cvzone layout
+                ##img_background = cv.rectangle(img_background, (200 + x1,355 + y1), (x2 - x1, y2 -y1), (2, 300, 2), 2)
 
-    if counter != 0:
+                id = emp_ids[match_index]
+                if counter == 0:
+                    counter = 1
+                    action_type = 1
 
-        if counter == 1:
-            emp_info = db.reference(f'Employees/{id}').get()#geting the data from the real time database Employees
-            print(emp_info)
+        if counter != 0:
 
-            blob = bucket.get_blob(f'images/{id}')
-            # print(blob)
-            array = np.frombuffer(blob.download_as_string(), np.uint8)
-            img_employee = cv.imdecode(array,cv.COLOR_BGRA2BGR)
+            if counter == 1:
+                emp_info = db.reference(f'Employees/{id}').get()#geting the data from the real time database Employees
+                print(emp_info)
+
+                blob = bucket.get_blob(f'Images/{id}.jpg')#getting the image from the database storage
+                # print(blob)
+                array = np.frombuffer(blob.download_as_string(), np.uint8)
+                img_employee = cv.imdecode(array,cv.COLOR_BGRA2BGR)#convert the img type and assign the value to img_employee
 
 
-        # cv.putText(img_background,str(emp_info['total_attendance']),(861,125),
-        #                             cv.FONT_HERSHEY_TRIPLEX,1,(255,255,255),1)
-        cv.putText(img_background,str(emp_info['total_attendance']),(1143,254),
-                    cv.FONT_HERSHEY_TRIPLEX,0.7,(255,255,255),1)
+                date_time_object = datetime.strptime(emp_info['last_attendance_time'],
+                                                    "%Y-%m-%d %H:%M:%S")
 
-        cv.putText(img_background, str(emp_info['employee_id']), (1022, 600),
-                   cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+                seconds_gap = (datetime.now()-date_time_object).total_seconds()
+                print(seconds_gap)
 
-        cv.putText(img_background, str(emp_info['salary']), (1057, 727),
-                   cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
+                salary = int(emp_info['salary'])
+                total_attendance = int(emp_info['total_attendance'])
 
-        cv.putText(img_background, str(emp_info['name']), (940, 254),
-                   cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+                current_salary = (salary/30) * total_attendance
+                # print(current_salary)
 
-        cv.putText(img_background, str(emp_info['role']), (1017, 665),
-                   cv.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)
+                if seconds_gap > 20 :
+                # if seconds_gap > 50400:
+                #update the data to the attendance
+                    ref = db.reference(f'Employees/{id}')
+                    emp_info['total_attendance'] += 1 #adding one to the attendance
+                    ref.child('total_attendance').set(emp_info['total_attendance'])  # and update in database
 
-        img_background[175:175+216,909:909:216]= img_employee
+                    salary = int(emp_info['salary'])
+                    total_attendance = int(emp_info['total_attendance'])
+                    current_salary = (salary / 30) * total_attendance
+                    # print(current_salary)
 
-        counter+=1 #once it Recognise the face it updates the data
+                    ref.child('last_attendance_time').set(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    emp_info['current_month_salary'] = current_salary  # adcing the current salary
+                    ref.child('current_month_salary').set(emp_info['current_month_salary'])#update in database
 
+                else:
+                    action_type = 3
+                    counter = 0
+                    img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[action_type]
+
+                print(emp_info['current_month_salary'])
+
+            if action_type != 3:
+
+                if 10<counter<20:
+                    action_type = 2
+
+                img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[action_type]
+
+                if counter<=10:
+
+                    cv.putText(img_background,str(emp_info['total_attendance']),(1143,254),
+                                cv.FONT_HERSHEY_TRIPLEX,0.7,(255,255,255),1)
+
+                    cv.putText(img_background, str(emp_info['employee_id']), (1022, 600),
+                               cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+
+                    # cv.putText(img_background, str(emp_info[('salary'/30)*'total_attendance']), (1057, 727),
+                    #            cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
+                    cv.putText(img_background, str(emp_info['current_month_salary']), (1057, 727),
+                               cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
+
+                    cv.putText(img_background, str(emp_info['name']), (940, 254),
+                               cv.FONT_HERSHEY_TRIPLEX, 0.7, (255, 255, 255), 1)
+
+                    cv.putText(img_background, str(emp_info['role']), (1017, 665),
+                               cv.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)
+
+                    img_employee_resized = cv.resize(img_employee, (216, 216))
+
+                    img_background[306:306 + 216, 919:919 + 216] = img_employee_resized
+                    # img_background[310:310 + 216, 917:917 + 216] = img_employee
+
+                    time.sleep(5)
+
+                counter+=1 #once it Recognise the face it updates the data
+
+                if counter>=20:
+                    counter = 0
+                    action_type = 0
+                    emp_info = []
+                    img_employee = []
+                    img_background[173:173 + desired_height, 823:823 + desired_width] = action_list[action_type]
+    else:
+        action_type = 0
+        counter = 0
 
     cv.imshow('face attendance', img_background)
 #   cv.imshow('web cam', webcam)
 
     cv.waitKey(1)
-
 
 
 
